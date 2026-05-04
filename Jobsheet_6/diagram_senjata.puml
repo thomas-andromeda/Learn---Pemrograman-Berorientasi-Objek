@@ -1,0 +1,32 @@
+@startuml diagram_senjata
+skinparam classAttributeIconSize 0
+
+abstract class Senjata {
+  +nama: String
+  {abstract} +serang()
+  {abstract} +ammo_atau_daya_tahan: int
+  +info_nama()
+}
+
+class Pedang {
+  +panjang_bilah: float
+  -daya_tahan_internal: int
+  +serang()
+  +daya_tahan: int
+}
+
+class Panah {
+  +jumlah_anak_panah: int
+  +serang()
+  +ammo: int
+}
+
+Senjata <|-- Pedang
+Senjata <|-- Panah
+
+note right of Senjata
+  Kelas Abstrak
+  (Inherits from ABC)
+end note
+
+@enduml
