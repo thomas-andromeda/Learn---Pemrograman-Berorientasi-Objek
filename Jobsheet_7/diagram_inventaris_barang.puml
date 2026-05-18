@@ -1,0 +1,30 @@
+@startuml diagram_inventaris_barang
+skinparam classAttributeIconSize 0
+
+class InventarisBarang {
+    # _items : dict
+    ==
+    + __init__()
+    + tambah_barang(kode: Any, jumlah: Any) : void
+    + ambil_barang(kode: Any, jumlah: Any) : void
+    + cek_stok(kode: Any) : void
+}
+
+note right of InventarisBarang::tambah_barang
+  **Error Handling:**
+  - try...except ValueError (jumlah tidak positif/bukan int)
+  - **raises** KeyError jika kode sudah terdaftar
+end note
+
+note right of InventarisBarang::ambil_barang
+  **Error Handling:**
+  - try...except KeyError (kode tidak ketemu)
+  - **raises** ValueError jika format salah / stok kurang
+end note
+
+note right of InventarisBarang::cek_stok
+  **Error Handling:**
+  Menggunakan struktur lengkap:
+  **try...except KeyError...else...finally**
+end note
+@endum
