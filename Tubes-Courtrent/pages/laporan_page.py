@@ -14,6 +14,65 @@ from manajemen import get_total_pendapatan_db
 from konfigurasi import ROLE_ADMIN, ROLE_KASIR, COLOR_PRIMARY, tampilkan_peringatan_kosong
 
 
+def _generate_excel(total_pend, total_booking, rata_rata, df_range, df_per_lap):
+    import io
+    output = io.BytesIO()
+    
+    # 1. Buat DataFrame Ringkasan Utama
+    df_ringkasan = pd.DataFrame([{
+        "Total Pendapatan (Rp)": total_pend,
+        "Total Booking": total_booking,
+        "Rata-rata Pendapatan per Booking (Rp)": rata_rata
+    }])
+    
+    # 1.5. Buat DataFrame Rincian Kontribusi per Lapangan (periode terpilih)
+    if not df_range.empty:
+        df_kontribusi = df_range.groupby(["lapangan", "jenis"]).agg(
+            Jumlah_Booking=('id', 'count'),
+            Total_Pendapatan=('total_biaya', 'sum')
+        ).reset_index()
+        # Hitung persentase kontribusi terhadap total_pend
+        df_kontribusi["Persentase_Kontribusi"] = (df_kontribusi["Total_Pendapatan"] / total_pend) * 100 if total_pend else 0
+        df_kontribusi["Persentase_Kontribusi"] = df_kontribusi["Persentase_Kontribusi"].round(2).apply(lambda x: f"{x}%")
+        df_kontribusi.columns = ["Nama Lapangan", "Jenis Lapangan", "Jumlah Booking", "Pendapatan (Rp)", "Kontribusi (%)"]
+        df_kontribusi = df_kontribusi.sort_values(by="Pendapatan (Rp)", ascending=False)
+    else:
+        df_kontribusi = pd.DataFrame(columns=["Nama Lapangan", "Jenis Lapangan", "Jumlah Booking", "Pendapatan (Rp)", "Kontribusi (%)"])
+    
+    # 2. Buat DataFrame Detail Booking
+    if not df_range.empty:
+        df_detail = df_range[["id", "nama_tim", "lapangan", "jenis", "tanggal", "jam_mulai", "durasi_menit", "total_biaya", "status"]].copy()
+        df_detail.columns = ["No. Booking", "Nama Tim", "Lapangan", "Jenis", "Tanggal", "Jam Mulai", "Durasi (Menit)", "Total Biaya (Rp)", "Status"]
+    else:
+        df_detail = pd.DataFrame(columns=["No. Booking", "Nama Tim", "Lapangan", "Jenis", "Tanggal", "Jam Mulai", "Durasi (Menit)", "Total Biaya (Rp)", "Status"])
+        
+    # 3. Buat DataFrame Pendapatan per Lapangan (All-time)
+    if not df_per_lap.empty:
+        df_lapangan = df_per_lap.rename(columns={
+            "lapangan": "Lapangan",
+            "jenis": "Jenis",
+            "total_pendapatan": "Total Pendapatan (Rp)",
+            "jumlah_booking": "Jumlah Booking"
+        })
+    else:
+        df_lapangan = pd.DataFrame(columns=["Lapangan", "Jenis", "Total Pendapatan (Rp)", "Jumlah Booking"])
+
+    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+        # Tulis label dan tabel Ringkasan Utama
+        pd.DataFrame([["=== RINGKASAN UTAMA PERIODE ==="]]).to_excel(writer, sheet_name='Ringkasan', index=False, header=False, startrow=0)
+        df_ringkasan.to_excel(writer, sheet_name='Ringkasan', index=False, startrow=1)
+        
+        # Tulis label dan tabel Rincian Kontribusi Lapangan
+        pd.DataFrame([["=== RINCIAN KONTRIBUSI PER LAPANGAN (PERIODE TERPILIH) ==="]]).to_excel(writer, sheet_name='Ringkasan', index=False, header=False, startrow=4)
+        df_kontribusi.to_excel(writer, sheet_name='Ringkasan', index=False, startrow=5)
+        
+        # Tulis Sheet Detail Booking & Statistik All-time
+        df_detail.to_excel(writer, sheet_name='Detail Booking', index=False)
+        df_lapangan.to_excel(writer, sheet_name='Statistik Lapangan (All-time)', index=False)
+        
+    return output.getvalue()
+
+
 def render():
     if not require_role(ROLE_ADMIN, ROLE_KASIR):
         return
@@ -48,6 +107,7 @@ def render():
     total_pend = get_total_pendapatan_db(tgl_mulai, tgl_selesai)
     df_harian  = get_pendapatan_harian(n_hari=(tgl_selesai - tgl_mulai).days + 1)
     df_booking = get_all_booking_db()
+    df_per_lap = get_pendapatan_per_lapangan()
 
     if not df_booking.empty:
         df_booking["tanggal_dt"] = pd.to_datetime(df_booking["tanggal"])
@@ -70,6 +130,18 @@ def render():
         st.metric("Total Booking", str(total_booking))
     with c3:
         st.metric("Rata-rata per Booking", f"Rp {rata_rata:,.0f}")
+
+    try:
+        excel_data = _generate_excel(total_pend, total_booking, rata_rata, df_range, df_per_lap)
+        st.download_button(
+            label="Unduh Laporan (Excel)",
+            data=excel_data,
+            file_name=f"laporan_court_rent_{tgl_mulai}_to_{tgl_selesai}.xlsx",
+            mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+            use_container_width=True
+        )
+    except Exception as e:
+        st.error(f"Gagal menyiapkan file unduhan Excel: {e}")
 
     st.divider()
 
@@ -116,7 +188,6 @@ def render():
     st.divider()
 
     st.markdown("### Pendapatan per Lapangan")
-    df_per_lap = get_pendapatan_per_lapangan()
     if not df_per_lap.empty:
         col_a, col_b = st.columns([1, 1])
         with col_a:
