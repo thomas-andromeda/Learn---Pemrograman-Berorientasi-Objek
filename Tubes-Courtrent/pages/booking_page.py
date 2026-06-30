@@ -28,6 +28,22 @@ def render():
     st.markdown("Isi formulir di bawah untuk membuat booking baru.")
     st.divider()
 
+    # State sukses booking untuk mencegah double-submit/spam button
+    if "bk_success" not in st.session_state:
+        st.session_state.bk_success = False
+
+    if st.session_state.bk_success:
+        st.success("Booking berhasil dibuat!")
+        st.balloons()
+        if "bk_nota" in st.session_state:
+            with st.expander("Lihat Nota Booking", expanded=True):
+                st.code(st.session_state.bk_nota, language=None)
+        if st.button("Buat Booking Baru Lagi", use_container_width=True, type="primary"):
+            st.session_state.bk_success = False
+            st.session_state.pop("bk_nota", None)
+            st.rerun()
+        return
+
     all_lapangan = get_all_lapangan()
     if not all_lapangan:
         tampilkan_peringatan_kosong("Belum ada lapangan yang tersedia.")
@@ -77,6 +93,8 @@ def render():
                                    index=1, key="bk_durasi")
     durasi_menit   = durasi_options[durasi_label]
 
+    is_invalid_time = False
+    total_m = 0
     if jam_mulai:
         jam, menit  = map(int, jam_mulai.split(":"))
         total_m     = jam * 60 + menit + durasi_menit
@@ -86,14 +104,19 @@ def render():
                           if l.id_lapangan == lap_data["id"]), None)
         biaya_est = lap_obj.hitung_biaya(durasi_menit) if lap_obj else 0
 
-        st.markdown(f"""
-        <div style="background:#F0FDF4; border:1px solid #86EFAC;
-                    border-radius:8px; padding:0.9rem 1.2rem;
-                    margin: 0.5rem 0 1rem 0;">
-            Jam selesai: <b>{jam_selesai} WIB</b> &nbsp;|&nbsp;
-            Estimasi biaya: <b>Rp {biaya_est:,.0f}</b>
-        </div>
-        """, unsafe_allow_html=True)
+        is_invalid_time = total_m > JAM_TUTUP * 60
+
+        if is_invalid_time:
+            st.error(f"⚠️ Waktu selesai ({jam_selesai} WIB) melebihi jam tutup Sport Center ({JAM_TUTUP:02d}:00 WIB). Silakan kurangi durasi atau pilih jam mulai lebih awal.")
+        else:
+            st.markdown(f"""
+            <div style="background:#F0FDF4; border:1px solid #86EFAC;
+                        border-radius:8px; padding:0.9rem 1.2rem;
+                        margin: 0.5rem 0 1rem 0;">
+                Jam selesai: <b>{jam_selesai} WIB</b> &nbsp;|&nbsp;
+                Estimasi biaya: <b>Rp {biaya_est:,.0f}</b>
+            </div>
+            """, unsafe_allow_html=True)
 
     st.divider()
 
@@ -117,7 +140,10 @@ def render():
                 unsafe_allow_html=True
             )
 
-    if st.button("Konfirmasi dan Buat Booking", use_container_width=True, type="primary"):
+    # Menonaktifkan tombol jika waktu selesai tidak valid
+    btn_disabled = is_invalid_time or not jam_mulai
+
+    if st.button("Konfirmasi dan Buat Booking", use_container_width=True, type="primary", disabled=btn_disabled):
         if not nama_tim.strip():
             st.error("Nama tim / pemesan tidak boleh kosong.")
         else:
@@ -132,10 +158,8 @@ def render():
                 )
 
             if sukses and booking_obj:
-                st.success(pesan)
-                st.balloons()
-                st.markdown("---")
-                with st.expander("Lihat Nota Booking", expanded=True):
-                    st.code(booking_obj.generate_nota(), language=None)
+                st.session_state.bk_success = True
+                st.session_state.bk_nota = booking_obj.generate_nota()
+                st.rerun()
             else:
                 st.error(pesan)

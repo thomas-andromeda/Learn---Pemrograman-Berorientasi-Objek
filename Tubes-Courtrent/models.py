@@ -91,11 +91,6 @@ class LapanganFutsal(Lapangan):
     def jenis_rumput(self) -> str:
         return self._jenis_rumput
 
-    def hitung_biaya(self, durasi_menit: int) -> float:
-        """Rumput sintetis dikenakan biaya tambahan 10%."""
-        biaya_dasar = super().hitung_biaya(durasi_menit)
-        tambahan    = 0.10 if self._jenis_rumput == "Sintetis" else 0.0
-        return round(biaya_dasar * (1 + tambahan), 0)
 
     def get_atribut_khusus(self) -> str:
         return f"Rumput: {self._jenis_rumput}"
@@ -118,11 +113,6 @@ class LapanganBadminton(Lapangan):
     def jenis_karpet(self) -> str:
         return self._jenis_karpet
 
-    def hitung_biaya(self, durasi_menit: int) -> float:
-        """Karpet kayu dikenakan biaya tambahan 15%."""
-        biaya_dasar = super().hitung_biaya(durasi_menit)
-        tambahan    = 0.15 if self._jenis_karpet == "Kayu" else 0.0
-        return round(biaya_dasar * (1 + tambahan), 0)
 
     def get_atribut_khusus(self) -> str:
         return f"Karpet: {self._jenis_karpet}"
@@ -145,11 +135,6 @@ class LapanganTenis(Lapangan):
     def jenis_lapangan(self) -> str:
         return self._jenis_lapangan
 
-    def hitung_biaya(self, durasi_menit: int) -> float:
-        """Clay court dikenakan biaya tambahan 20%."""
-        biaya_dasar = super().hitung_biaya(durasi_menit)
-        tambahan    = 0.20 if self._jenis_lapangan == "Clay" else 0.0
-        return round(biaya_dasar * (1 + tambahan), 0)
 
     def get_atribut_khusus(self) -> str:
         return f"Surface: {self._jenis_lapangan}"
@@ -409,6 +394,13 @@ class SportCenter:
 
         self._daftar_booking.append(booking)
         return True, "Booking berhasil ditambahkan."
+
+    def tambah_booking_langsung(self, booking: Booking) -> bool:
+        """Tambah booking ke daftar secara langsung tanpa validasi (loading DB)."""
+        if isinstance(booking, Booking):
+            self._daftar_booking.append(booking)
+            return True
+        return False
 
     def cek_ketersediaan_slot(self, id_lapangan: int, tanggal: datetime.date,
                                jam_mulai: str, durasi_menit: int,

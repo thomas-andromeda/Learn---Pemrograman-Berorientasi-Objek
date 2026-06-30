@@ -95,11 +95,32 @@ def render():
                                                   index=curr_idx,
                                                   key=f"attr_{lap['id']}")
 
-                        col_btn1, col_btn2 = st.columns(2)
-                        simpan = col_btn1.form_submit_button("Simpan Perubahan",
-                                                              use_container_width=True)
-                        hapus  = col_btn2.form_submit_button("Hapus Lapangan",
-                                                              use_container_width=True)
+                        simpan = st.form_submit_button("Simpan Perubahan", use_container_width=True)
+
+                    # Tombol hapus diletakkan di luar form edit agar tidak terpicu bersamaan
+                    # dan ditambahkan konfirmasi interaktif
+                    confirm_key = f"confirm_hapus_{lap['id']}"
+                    if confirm_key not in st.session_state:
+                        st.session_state[confirm_key] = False
+
+                    if not st.session_state[confirm_key]:
+                        if st.button("🗑️ Hapus Lapangan", key=f"btn_hapus_{lap['id']}", use_container_width=True):
+                            st.session_state[confirm_key] = True
+                            st.rerun()
+                    else:
+                        st.warning(f"Apakah Anda yakin ingin menghapus lapangan **{lap['nama']}**?")
+                        col_yes, col_no = st.columns(2)
+                        if col_yes.button("Ya, Hapus Sekarang", key=f"btn_hapus_yes_{lap['id']}", use_container_width=True, type="primary"):
+                            st.session_state[confirm_key] = False
+                            ok = hapus_lapangan_db(lap["id"])
+                            if ok:
+                                st.success(f"Lapangan **{lap['nama']}** berhasil dihapus.")
+                                st.rerun()
+                            else:
+                                st.error("Tidak bisa menghapus lapangan yang masih memiliki booking aktif.")
+                        if col_no.button("Batal", key=f"btn_hapus_no_{lap['id']}", use_container_width=True):
+                            st.session_state[confirm_key] = False
+                            st.rerun()
 
                     if simpan:
                         ok = update_lapangan_db(
@@ -114,11 +135,3 @@ def render():
                             st.rerun()
                         else:
                             st.error("Gagal memperbarui.")
-
-                    if hapus:
-                        ok = hapus_lapangan_db(lap["id"])
-                        if ok:
-                            st.success(f"Lapangan **{lap['nama']}** dihapus.")
-                            st.rerun()
-                        else:
-                            st.error("Tidak bisa menghapus lapangan yang masih memiliki booking aktif.")

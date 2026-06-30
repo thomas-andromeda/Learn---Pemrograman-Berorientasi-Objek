@@ -88,7 +88,7 @@ def cek_ketersediaan_slot(id_lapangan: int, tanggal: datetime.date,
             id_user        = 0,
             status         = b["status"],
         )
-        sc.daftar_booking.append(dummy_booking)
+        sc.tambah_booking_langsung(dummy_booking)
 
     return sc.cek_ketersediaan_slot(id_lapangan, tanggal, jam_mulai, durasi_menit)
 

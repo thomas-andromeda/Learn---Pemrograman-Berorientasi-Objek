@@ -79,16 +79,35 @@ def render():
         df_harian = df_harian[
             (df_harian["tanggal"].dt.date >= tgl_mulai) &
             (df_harian["tanggal"].dt.date <= tgl_selesai)
-        ].set_index("tanggal")
-
+        ].copy()
+ 
         if not df_harian.empty:
+            import altair as alt
+            df_harian["tanggal"] = df_harian["tanggal"].dt.strftime("%d %b %Y")
+            
             tab1, tab2 = st.tabs(["Bar Chart", "Line Chart"])
             with tab1:
-                st.bar_chart(df_harian["pendapatan"],
-                             use_container_width=True, color=COLOR_PRIMARY)
+                chart = alt.Chart(df_harian).mark_bar(
+                    color=COLOR_PRIMARY,
+                    size=40
+                ).encode(
+                    x=alt.X('tanggal:O', axis=alt.Axis(labelAngle=0), title=None),
+                    y=alt.Y('pendapatan:Q', title='Pendapatan (Rp)')
+                ).properties(
+                    height=300
+                )
+                st.altair_chart(chart, use_container_width=True)
             with tab2:
-                st.line_chart(df_harian["pendapatan"],
-                              use_container_width=True, color=COLOR_PRIMARY)
+                chart_line = alt.Chart(df_harian).mark_line(
+                    color=COLOR_PRIMARY,
+                    point=True
+                ).encode(
+                    x=alt.X('tanggal:O', axis=alt.Axis(labelAngle=0), title=None),
+                    y=alt.Y('pendapatan:Q', title='Pendapatan (Rp)')
+                ).properties(
+                    height=300
+                )
+                st.altair_chart(chart_line, use_container_width=True)
         else:
             tampilkan_peringatan_kosong("Tidak ada data dalam rentang tanggal ini.")
     else:
@@ -110,8 +129,17 @@ def render():
                 use_container_width=True, hide_index=True
             )
         with col_b:
-            df_chart = df_per_lap.set_index("lapangan")[["total_pendapatan"]]
-            st.bar_chart(df_chart, use_container_width=True, color=COLOR_PRIMARY)
+            import altair as alt
+            chart_lap = alt.Chart(df_per_lap).mark_bar(
+                color=COLOR_PRIMARY,
+                size=40
+            ).encode(
+                x=alt.X('lapangan:O', axis=alt.Axis(labelAngle=0), title=None),
+                y=alt.Y('total_pendapatan:Q', title='Pendapatan (Rp)')
+            ).properties(
+                height=300
+            )
+            st.altair_chart(chart_lap, use_container_width=True)
     else:
         tampilkan_peringatan_kosong("Belum ada data pendapatan per lapangan.")
 

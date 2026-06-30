@@ -171,12 +171,12 @@ def seed_data() -> bool:
         cursor.execute("SELECT COUNT(*) FROM lapangan")
         if cursor.fetchone()[0] == 0:
             lapangan_data = [
-                ("Futsal A",      "Futsal",    HARGA_FUTSAL,    1, "Sintetis"),
-                ("Futsal B",      "Futsal",    HARGA_FUTSAL,    0, "Interlock"),
-                ("Badminton 1",   "Badminton", HARGA_BADMINTON, 1, "Vinyl"),
-                ("Badminton 2",   "Badminton", HARGA_BADMINTON, 1, "Kayu"),
-                ("Tenis Utama",   "Tenis",     HARGA_TENIS,     0, "Hard Court"),
-                ("Tenis Premium", "Tenis",     HARGA_TENIS,     0, "Clay"),
+                ("Futsal A",      "Futsal",    90000.0,    1, "Sintetis"),
+                ("Futsal B",      "Futsal",    80000.0,    0, "Interlock"),
+                ("Badminton 1",   "Badminton", 50000.0,    1, "Vinyl"),
+                ("Badminton 2",   "Badminton", 60000.0,    1, "Kayu"),
+                ("Tenis Utama",   "Tenis",     100000.0,   0, "Hard Court"),
+                ("Tenis Premium", "Tenis",     120000.0,   0, "Clay"),
             ]
             cursor.executemany(
                 "INSERT INTO lapangan (nama, jenis, harga_per_jam, is_indoor, atribut_khusus) "
@@ -196,11 +196,76 @@ def seed_data() -> bool:
         conn.close()
 
 
+def migrate_prices_in_db() -> bool:
+    """Perbarui harga lapangan yang sudah ada di database ke harga baru yang lebih murah."""
+    conn = get_db_connection()
+    if not conn:
+        return False
+    try:
+        cursor = conn.cursor()
+        cursor.execute("UPDATE lapangan SET harga_per_jam = 90000.0 WHERE nama = 'Futsal A' AND jenis = 'Futsal'")
+        cursor.execute("UPDATE lapangan SET harga_per_jam = 80000.0 WHERE nama = 'Futsal B' AND jenis = 'Futsal'")
+        cursor.execute("UPDATE lapangan SET harga_per_jam = 50000.0 WHERE nama = 'Badminton 1' AND jenis = 'Badminton'")
+        cursor.execute("UPDATE lapangan SET harga_per_jam = 60000.0 WHERE nama = 'Badminton 2' AND jenis = 'Badminton'")
+        cursor.execute("UPDATE lapangan SET harga_per_jam = 100000.0 WHERE nama = 'Tenis Utama' AND jenis = 'Tenis'")
+        cursor.execute("UPDATE lapangan SET harga_per_jam = 120000.0 WHERE nama = 'Tenis Premium' AND jenis = 'Tenis'")
+        conn.commit()
+        print("[database.py] Migrasi harga sewa lapangan berhasil.")
+        return True
+    except sqlite3.Error as e:
+        conn.rollback()
+        print(f"[database.py] ERROR migrasi harga sewa: {e}")
+        return False
+    finally:
+        conn.close()
+
+
+def migrate_existing_bookings_cost() -> bool:
+    """Rekalkulasi total_biaya untuk semua booking yang ada di database berdasarkan harga flat baru."""
+    conn = get_db_connection()
+    if not conn:
+        return False
+    try:
+        cursor = conn.cursor()
+        
+        # Ambil semua booking beserta harga_per_jam lapangan saat ini
+        cursor.execute("""
+            SELECT b.id, b.durasi_menit, l.harga_per_jam
+            FROM booking b
+            JOIN lapangan l ON b.id_lapangan = l.id
+        """)
+        bookings = cursor.fetchall()
+        
+        for b in bookings:
+            booking_id = b["id"]
+            durasi = b["durasi_menit"]
+            harga_per_jam = b["harga_per_jam"]
+            
+            # Hitung total biaya flat: (durasi_menit / 60) * harga_per_jam
+            new_total = round((durasi / 60) * harga_per_jam, 0)
+            
+            # Update total_biaya di database
+            cursor.execute("UPDATE booking SET total_biaya = ? WHERE id = ?", (new_total, booking_id))
+            print(f"[database.py] Booking #{booking_id} diperbarui: Durasi {durasi}mnt, Harga/jam {harga_per_jam} -> Total {new_total}")
+            
+        conn.commit()
+        print("[database.py] Rekalkulasi biaya seluruh booking selesai.")
+        return True
+    except sqlite3.Error as e:
+        conn.rollback()
+        print(f"[database.py] ERROR rekalkulasi biaya booking: {e}")
+        return False
+    finally:
+        conn.close()
+
+
 def init_db() -> bool:
-    """Inisialisasi database: setup tabel dan seed data awal."""
+    """Inisialisasi database: setup tabel, seed data awal, migrasi harga lapangan, dan biaya booking."""
     ok_setup = setup_database()
     ok_seed  = seed_data()
-    return ok_setup and ok_seed
+    ok_mig   = migrate_prices_in_db()
+    ok_mig_b = migrate_existing_bookings_cost()
+    return ok_setup and ok_seed and ok_mig and ok_mig_b
 
 
 # Operasi lapangan
@@ -337,14 +402,15 @@ def get_all_users_db() -> list[dict]:
 # Laporan dan statistik
 def get_pendapatan_harian(n_hari: int = 30) -> pd.DataFrame:
     """Pendapatan per hari dalam N hari terakhir."""
-    return get_dataframe(f"""
+    cutoff_date = (datetime.date.today() - datetime.timedelta(days=n_hari)).strftime("%Y-%m-%d")
+    return get_dataframe("""
         SELECT tanggal, SUM(total_biaya) AS pendapatan, COUNT(*) AS jumlah_booking
         FROM booking
         WHERE status != 'Dibatalkan'
-          AND tanggal >= date('now', '-{n_hari} days')
+          AND tanggal >= ?
         GROUP BY tanggal
         ORDER BY tanggal
-    """)
+    """, (cutoff_date,))
 
 
 def get_pendapatan_per_lapangan() -> pd.DataFrame:

@@ -134,16 +134,48 @@ def render():
                         update_status_booking(int(row["id"]), "Selesai")
                         st.success("Status diubah menjadi Selesai.")
                         st.rerun()
-                with c3:
-                    if st.button("Batalkan", key=f"batal_{row['id']}",
-                                  use_container_width=True):
+
+                confirm_batal_key = f"confirm_batal_{row['id']}"
+                if confirm_batal_key not in st.session_state:
+                    st.session_state[confirm_batal_key] = False
+
+                if not st.session_state[confirm_batal_key]:
+                    with c3:
+                        if st.button("Batalkan", key=f"batal_{row['id']}",
+                                      use_container_width=True):
+                            st.session_state[confirm_batal_key] = True
+                            st.rerun()
+                else:
+                    st.warning(f"Batalkan booking #{row['id']:05d}?")
+                    col_yes, col_no = st.columns(2)
+                    if col_yes.button("Ya, Batalkan", key=f"batal_yes_{row['id']}", use_container_width=True, type="primary"):
+                        st.session_state[confirm_batal_key] = False
                         update_status_booking(int(row["id"]), "Dibatalkan")
                         st.warning("Booking dibatalkan.")
                         st.rerun()
+                    if col_no.button("Batal", key=f"batal_no_{row['id']}", use_container_width=True):
+                        st.session_state[confirm_batal_key] = False
+                        st.rerun()
+
             elif not is_staff and row["status"] == "Aktif":
-                with c2:
-                    if st.button("Batalkan", key=f"batal_user_{row['id']}",
-                                  use_container_width=True):
+                confirm_batal_key = f"confirm_batal_user_{row['id']}"
+                if confirm_batal_key not in st.session_state:
+                    st.session_state[confirm_batal_key] = False
+
+                if not st.session_state[confirm_batal_key]:
+                    with c2:
+                        if st.button("Batalkan", key=f"batal_user_{row['id']}",
+                                      use_container_width=True):
+                            st.session_state[confirm_batal_key] = True
+                            st.rerun()
+                else:
+                    st.warning(f"Apakah Anda yakin ingin membatalkan booking #{row['id']:05d}?")
+                    col_yes, col_no = st.columns(2)
+                    if col_yes.button("Ya, Batalkan", key=f"batal_user_yes_{row['id']}", use_container_width=True, type="primary"):
+                        st.session_state[confirm_batal_key] = False
                         update_status_booking(int(row["id"]), "Dibatalkan")
                         st.warning("Booking Anda dibatalkan.")
+                        st.rerun()
+                    if col_no.button("Batal", key=f"batal_user_no_{row['id']}", use_container_width=True):
+                        st.session_state[confirm_batal_key] = False
                         st.rerun()

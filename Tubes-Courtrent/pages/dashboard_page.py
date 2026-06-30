@@ -77,9 +77,19 @@ def render():
         st.markdown("### Pendapatan 14 Hari Terakhir")
         df_pend = get_pendapatan_harian(n_hari=14)
         if not df_pend.empty:
-            df_pend["tanggal"] = pd.to_datetime(df_pend["tanggal"])
-            df_pend = df_pend.set_index("tanggal")
-            st.bar_chart(df_pend["pendapatan"], use_container_width=True, color=COLOR_PRIMARY)
+            import altair as alt
+            df_pend["tanggal"] = pd.to_datetime(df_pend["tanggal"]).dt.strftime("%d %b %Y")
+            df_chart = df_pend.reset_index()
+            chart = alt.Chart(df_chart).mark_bar(
+                color=COLOR_PRIMARY,
+                size=40
+            ).encode(
+                x=alt.X('tanggal:O', axis=alt.Axis(labelAngle=0), title=None),
+                y=alt.Y('pendapatan:Q', title='Pendapatan (Rp)')
+            ).properties(
+                height=300
+            )
+            st.altair_chart(chart, use_container_width=True)
         else:
             tampilkan_peringatan_kosong("Belum ada data pendapatan dalam 14 hari terakhir.")
         st.divider()
